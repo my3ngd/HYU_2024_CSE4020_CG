@@ -1,1 +1,5 @@
 .venv
+기출/
+ppt/
+*.zip
+test.py
