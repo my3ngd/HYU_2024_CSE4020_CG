@@ -12,7 +12,7 @@ from Ray import *
 
 # global variables
 pin_position = [0,0,0]
-animationStartTime = 0
+startTime = 0
 wld2cam = []
 cam2wld = []
 cow2wld = None
@@ -32,14 +32,15 @@ H_DRAG = 1
 V_DRAG = 2
 # dragging state
 isDrag = 0
+
 curvePoint = []
 isRunning = False
 clicked = False
-position = []
+startPoint = None
 spotLen = 6  # constant
 maxLoop = 3  # constant
 slowFactor = 1.2
-controlPointIndex = 0
+index = 0
 
 class PickInfo:
     def __init__(self, cursorRayT, cowPickPosition, cowPickConfiguration, cowPickPositionLocal):
@@ -408,7 +409,7 @@ def screenCoordToRay(window, x, y):
     return Ray(rayOrigin, normalize(vecBeforeProjection-rayOrigin))
 
 def curve(runnintTime):
-    global controlPointIndex, curvePoint, slowFactor
+    global index, curvePoint, slowFactor
     T = runnintTime / slowFactor
     B = [
         (-1 * T**3 + 2 * T**2 - T + 0) / 2,
@@ -416,7 +417,7 @@ def curve(runnintTime):
         (-3 * T**3 + 4 * T**2 + T + 0) / 2,
         ( 1 * T**3 - 1 * T**2 + 0 + 0) / 2,
     ]
-    X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(controlPointIndex + i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
+    X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(index+i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
     return vector3(X, Y, Z)
 
 def turnHead(current, faceTo):
@@ -434,27 +435,27 @@ def turnHead(current, faceTo):
     transforming(cow2wld, (Y @ X).T)
 
 def runAnimation():
-    global isRunning, cow2wld, curvePoint, controlPointIndex, slowFactor, animationStartTime
-    animationTime = glfw.get_time() - animationStartTime
+    global isRunning, cow2wld, curvePoint, index, slowFactor, startTime
+    animationTime = glfw.get_time() - startTime
     nextPos = curve(animationTime)
     turnHead(getTranslation(cow2wld), nextPos)
     setTranslation(cow2wld, nextPos)
     if slowFactor <= animationTime:
-        animationStartTime = glfw.get_time()
-        controlPointIndex += 1
-        if len(curvePoint) <= controlPointIndex + 1:
+        startTime = glfw.get_time()
+        index += 1
+        if len(curvePoint) <= index + 1:
             stop()
 
 def start():
-    global animationStartTime, cow2wld, curvePoint, controlPointIndex, isRunning, position
-    position = np.copy(curvePoint[0])
-    controlPointIndex = -1
-    animationStartTime = glfw.get_time()
+    global startTime, cow2wld, curvePoint, index, isRunning, startPoint
+    startPoint = np.copy(curvePoint[0])
+    index = -1
+    startTime = glfw.get_time()
     isRunning = True
 
 def stop():
-    global curvePoint, cow2wld, isRunning, position
-    cow2wld = np.copy(position)
+    global curvePoint, cow2wld, isRunning, startPoint
+    cow2wld = np.copy(startPoint)
     curvePoint.clear()
     isRunning = False
 
@@ -468,8 +469,8 @@ def main():
     if not window:
         glfw.terminate()
         sys.exit(-1)
-    global animationStartTime
-    animationStartTime = glfw.get_time()
+    global startTime
+    startTime = glfw.get_time()
     glfw.make_context_current(window)
     glfw.set_key_callback(window, onKeyPress)
     glfw.set_mouse_button_callback(window, onMouseButton)
