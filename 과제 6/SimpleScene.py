@@ -408,28 +408,17 @@ def screenCoordToRay(window, x, y):
     rayOrigin = getTranslation(cam2wld[cameraIndex])
     return Ray(rayOrigin, normalize(vecBeforeProjection-rayOrigin))
 
-def curve(runnintTime):
+def curve(runtime):
     global index, curvePoint, slowFactor
-    t = runnintTime / slowFactor
-    # B = [
-    #     (-1 * t**3 + 2 * t**2 - t + 0) / 2,
-    #     ( 3 * t**3 - 5 * t**2 + 2 + 0) / 2,
-    #     (-3 * t**3 + 4 * t**2 + t + 0) / 2,
-    #     ( 1 * t**3 - 1 * t**2 + 0 + 0) / 2,
-    # ]
-    # X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(index+i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
-    # return vector3(X, Y, Z)
-    p0 = curvePoint[(index+5)%6]
-    p1 = curvePoint[(index+0)%6]
-    p2 = curvePoint[(index+1)%6]
-    p3 = curvePoint[(index+2)%6]
-    C = np.array([[-1, 3, -3, 1],
-                  [3, -6, 3, 0],
-                  [-1, 0, 1, 0],
-                  [0, 2, 0, 0]])
-    res = np.array([t**3, t**2, t**1, t**0]).T @ C @ np.array([p0, p1, p2, p3])
-    return res
-    
+    t = runtime / slowFactor
+    T = np.array([t**3, t**2, t**1, t**0]).T  # 1x4
+    B = np.array([[-1,  3, -3,  1],
+                  [ 2, -5,  4, -1],
+                  [-1,  0,  1,  0],
+                  [ 0,  2,  0,  0]])/2
+    B = T @ B
+    X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(index+i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
+    return vector3(X, Y, Z)
 
 
 def turnHead(prev, next):
@@ -444,6 +433,7 @@ def turnHead(prev, next):
     Y = np.array([[np.cos(yaw),  0., np.sin(yaw)],
                   [0.,           1.,          0.],
                   [-np.sin(yaw), 0., np.cos(yaw)]])
+    # Z = Identitiy
     transforming(cow2wld, (Y @ X).T)
 
 def runAnimation():
