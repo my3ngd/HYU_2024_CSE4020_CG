@@ -33,15 +33,6 @@ V_DRAG = 2
 # dragging state
 isDrag = 0
 
-curvePoint = []
-isRunning = False
-clicked = False
-startPoint = None
-spotLen = 6  # constant
-maxLoop = 3  # constant
-slowFactor = 1.2
-index = 0
-
 class PickInfo:
     def __init__(self, cursorRayT, cowPickPosition, cowPickConfiguration, cowPickPositionLocal):
         self.cursorRayT = cursorRayT
@@ -235,11 +226,7 @@ def display():
     drawFloor()                                         # Draw floor.
     drawCow(cow2wld, cursorOnCowBoundingBox)            # Draw cow.
 
-    if isRunning:
-        runAnimation()
-    else:
-        for pos in curvePoint:
-            drawCow(pos, False)
+    # TODO
 
     glFlush()
 
@@ -321,11 +308,10 @@ def initialize(window):
     cameraIndex = 0
 
 def onMouseButton(window,button, state, mods):
-    global isDrag, V_DRAG, H_DRAG, clicked, curvePoint, spotLen, maxLoop, slowFactor
-    GLFW_DOWN = 1
-    GLFW_UP = 0
-    x, y = glfw.get_cursor_pos(window)
-    if isRunning: return
+    global isDrag, V_DRAG, H_DRAG
+    GLFW_DOWN=1
+    GLFW_UP=0
+    x, y=glfw.get_cursor_pos(window)
     if button == glfw.MOUSE_BUTTON_LEFT:
         if state == GLFW_DOWN:
             if isDrag == H_DRAG:
@@ -333,46 +319,42 @@ def onMouseButton(window,button, state, mods):
             else:
                 isDrag = V_DRAG
             print( "Left mouse down-click at %d %d\n" % (x,y))
-            isDrag = V_DRAG  # continous drag mode
             # start vertical dragging
         elif state == GLFW_UP and isDrag != 0:
-            isDrag = H_DRAG
-            if not clicked:
-                clicked = True
-                return
-            curvePoint.append(copy.deepcopy(cow2wld))
-            if spotLen <= len(curvePoint):
-                curvePoint = curvePoint * maxLoop
-                start()
+            isDrag=H_DRAG
+            print( "Left mouse up\n")
+            # start horizontal dragging using mouse-move events.
     elif button == glfw.MOUSE_BUTTON_RIGHT:
         if state == GLFW_DOWN:
             print( "Right mouse click at (%d, %d)\n"%(x,y) )
 
 def onMouseDrag(window, x, y):
-    global isDrag, cursorOnCowBoundingBox, pickInfo, cow2wld, pin_position
-    if isRunning: return
-    if isDrag:
+    global isDrag,cursorOnCowBoundingBox, pickInfo, cow2wld
+    if isDrag: 
         print( "in drag mode %d\n"% isDrag)
-        if isDrag == V_DRAG:
-            ray = screenCoordToRay(window, x, y)
-            pp = pickInfo
-            p = Plane(np.array((1, 0, 0)), getTranslation(cow2wld))
-            c = ray.intersectsPlane(p)
-            currentPos = ray.getPoint(c[1])
-            currentPos[2] = getTranslation(cow2wld)[2]
-            T = np.eye(4)
-            setTranslation(T, currentPos - getTranslation(cow2wld))
-            cow2wld = T @ cow2wld
-        elif cursorOnCowBoundingBox:
-            ray = screenCoordToRay(window, x, y)
-            pp = pickInfo
-            p = Plane(np.array((0, 1, 0)), pp.cowPickPosition)
-            c = ray.intersectsPlane(p)
-            currentPos = ray.getPoint(c[1])
-            T = np.eye(4)
-            setTranslation(T, currentPos-pp.cowPickPosition)
-            cow2wld = T @ pp.cowPickConfiguration
-            pin_position = currentPos
+        if  isDrag == V_DRAG:
+            # vertical dragging
+            # TODO:
+            # create a dragging plane perpendicular to the ray direction, 
+            # and test intersection with the screen ray.
+            print('vdrag')
+
+        else:
+            # horizontal dragging
+            # Hint: read carefully the following block to implement vertical dragging.
+            if cursorOnCowBoundingBox:
+                ray = screenCoordToRay(window, x, y)
+                pp = pickInfo
+                p = Plane(np.array((0,1,0)), pp.cowPickPosition)
+                c = ray.intersectsPlane(p)
+
+                currentPos = ray.getPoint(c[1])
+                print(pp.cowPickPosition, currentPos)
+                print(pp.cowPickConfiguration, cow2wld)
+
+                T = np.eye(4)
+                setTranslation(T, currentPos-pp.cowPickPosition)
+                cow2wld = T@pp.cowPickConfiguration
     else:
         ray = screenCoordToRay(window, x, y)
 
@@ -381,12 +363,12 @@ def onMouseDrag(window, x, y):
         bbmin = cow.bbmin
         bbmax = cow.bbmax
 
-        planes.append(makePlane(bbmin, bbmax, vector3( 0, 1, 0)))
-        planes.append(makePlane(bbmin, bbmax, vector3( 0,-1, 0)))
-        planes.append(makePlane(bbmin, bbmax, vector3( 1, 0, 0)))
-        planes.append(makePlane(bbmin, bbmax, vector3(-1, 0, 0)))
-        planes.append(makePlane(bbmin, bbmax, vector3( 0, 0, 1)))
-        planes.append(makePlane(bbmin, bbmax, vector3( 0, 0,-1)))
+        planes.append(makePlane(bbmin, bbmax, vector3(0,1,0)))
+        planes.append(makePlane(bbmin, bbmax, vector3(0,-1,0)))
+        planes.append(makePlane(bbmin, bbmax, vector3(1,0,0)))
+        planes.append(makePlane(bbmin, bbmax, vector3(-1,0,0)))
+        planes.append(makePlane(bbmin, bbmax, vector3(0,0,1)))
+        planes.append(makePlane(bbmin, bbmax, vector3(0,0,-1)))
 
         o = ray.intersectsPlanes(planes)
         cursorOnCowBoundingBox = o[0]
@@ -407,69 +389,6 @@ def screenCoordToRay(window, x, y):
 
     rayOrigin = getTranslation(cam2wld[cameraIndex])
     return Ray(rayOrigin, normalize(vecBeforeProjection-rayOrigin))
-
-def curve(runnintTime):
-    global index, curvePoint, slowFactor
-    t = runnintTime / slowFactor
-    # B = [
-    #     (-1 * t**3 + 2 * t**2 - t + 0) / 2,
-    #     ( 3 * t**3 - 5 * t**2 + 2 + 0) / 2,
-    #     (-3 * t**3 + 4 * t**2 + t + 0) / 2,
-    #     ( 1 * t**3 - 1 * t**2 + 0 + 0) / 2,
-    # ]
-    # X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(index+i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
-    # return vector3(X, Y, Z)
-    p0 = curvePoint[(index+5)%6]
-    p1 = curvePoint[(index+0)%6]
-    p2 = curvePoint[(index+1)%6]
-    p3 = curvePoint[(index+2)%6]
-    C = np.array([[-1, 3, -3, 1],
-                  [3, -6, 3, 0],
-                  [-1, 0, 1, 0],
-                  [0, 2, 0, 0]])
-    res = np.array([t**3, t**2, t**1, t**0]).T @ C @ np.array([p0, p1, p2, p3])
-    return res
-    
-
-
-def turnHead(prev, next):
-    global cow2wld
-    d = normalize(next - prev)
-    pitch = math.asin(d[1])
-    yaw = math.atan2(d[2], d[0])
-    if yaw < 0: pitch *= -1
-    X = np.array([[1.,            0.,             0.],
-                  [0., np.cos(pitch), -np.sin(pitch)],
-                  [0., np.sin(pitch),  np.cos(pitch)]])
-    Y = np.array([[np.cos(yaw),  0., np.sin(yaw)],
-                  [0.,           1.,          0.],
-                  [-np.sin(yaw), 0., np.cos(yaw)]])
-    transforming(cow2wld, (Y @ X).T)
-
-def runAnimation():
-    global isRunning, cow2wld, curvePoint, index, slowFactor, startTime
-    animationTime = glfw.get_time() - startTime
-    nextPos = curve(animationTime)
-    turnHead(getTranslation(cow2wld), nextPos)
-    setTranslation(cow2wld, nextPos)
-    if slowFactor <= animationTime:
-        startTime = glfw.get_time()
-        index += 1
-        if len(curvePoint) <= index + 1:
-            stop()
-
-def start():
-    global startTime, cow2wld, curvePoint, index, isRunning, startPoint
-    startPoint = np.copy(curvePoint[0])
-    index = -1
-    startTime = glfw.get_time()
-    isRunning = True
-
-def stop():
-    global curvePoint, cow2wld, isRunning, startPoint
-    cow2wld = np.copy(startPoint)
-    curvePoint.clear()
-    isRunning = False
 
 def main():
     if not glfw.init():
