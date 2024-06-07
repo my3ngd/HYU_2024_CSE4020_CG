@@ -39,7 +39,6 @@ clicked = False
 startPoint = None
 spotLen = 6  # constant
 maxLoop = 3  # constant
-slowFactor = 1.2
 index = 0
 
 class PickInfo:
@@ -131,7 +130,7 @@ def drawFrame(leng):
 
 #*********************************************************************************
 # Draw 'cow' object.
-#*********************************************************************************/
+#*********************************************************************************
 def drawCow(_cow2wld, drawBB):
     glPushMatrix()  # Push the current matrix of GL into stack. This is because the matrix of GL will be change while drawing cow.
 
@@ -321,7 +320,8 @@ def initialize(window):
     cameraIndex = 0
 
 def onMouseButton(window,button, state, mods):
-    global isDrag, V_DRAG, H_DRAG, clicked, curvePoint, spotLen, maxLoop, slowFactor
+    global isDrag, V_DRAG, H_DRAG, clicked, curvePoint, spotLen, maxLoop
+    print(clicked)
     GLFW_DOWN = 1
     GLFW_UP = 0
     x, y = glfw.get_cursor_pos(window)
@@ -333,8 +333,7 @@ def onMouseButton(window,button, state, mods):
             else:
                 isDrag = V_DRAG
             print( "Left mouse down-click at %d %d\n" % (x,y))
-            isDrag = V_DRAG  # continous drag mode
-            # start vertical dragging
+            isDrag = V_DRAG
         elif state == GLFW_UP and isDrag != 0:
             isDrag = H_DRAG
             if not clicked:
@@ -409,8 +408,8 @@ def screenCoordToRay(window, x, y):
     return Ray(rayOrigin, normalize(vecBeforeProjection-rayOrigin))
 
 def curve(runtime):
-    global index, curvePoint, slowFactor
-    t = runtime / slowFactor
+    global index, curvePoint
+    t = runtime
     T = np.array([t**3, t**2, t**1, t**0]).T  # 1x4
     B = np.array([[-1,  3, -3,  1],
                   [ 2, -5,  4, -1],
@@ -420,29 +419,30 @@ def curve(runtime):
     X, Y, Z = [sum([B[i] * getTranslation(curvePoint[(index+i)%len(curvePoint)])[j] for i in range(4)]) for j in range(3)]
     return vector3(X, Y, Z)
 
-
 def turnHead(prev, next):
     global cow2wld
     d = normalize(next - prev)
     pitch = math.asin(d[1])
     yaw = math.atan2(d[2], d[0])
     if yaw < 0: pitch *= -1
-    X = np.array([[1.,            0.,             0.],
-                  [0., np.cos(pitch), -np.sin(pitch)],
-                  [0., np.sin(pitch),  np.cos(pitch)]])
-    Y = np.array([[np.cos(yaw),  0., np.sin(yaw)],
-                  [0.,           1.,          0.],
-                  [-np.sin(yaw), 0., np.cos(yaw)]])
+    cp, sp = np.cos(pitch), np.sin(pitch)
+    cy, sy = np.cos(yaw), np.sin(yaw)
+    X = np.array([[1., 0.,  0.],
+                  [0., cp, -sp],
+                  [0., sp,  cp]])
+    Y = np.array([[cy,  0., sy],
+                  [0.,  1., 0.],
+                  [-sy, 0., cy]])
     # Z = Identitiy
     transforming(cow2wld, (Y @ X).T)
 
 def runAnimation():
-    global isRunning, cow2wld, curvePoint, index, slowFactor, startTime
+    global isRunning, cow2wld, curvePoint, index, startTime
     animationTime = glfw.get_time() - startTime
     nextPos = curve(animationTime)
     turnHead(getTranslation(cow2wld), nextPos)
     setTranslation(cow2wld, nextPos)
-    if slowFactor <= animationTime:
+    if 1 <= animationTime:
         startTime = glfw.get_time()
         index += 1
         if len(curvePoint) <= index + 1:
@@ -456,10 +456,12 @@ def start():
     isRunning = True
 
 def stop():
-    global curvePoint, cow2wld, isRunning, startPoint
+    global curvePoint, cow2wld, isRunning, startPoint, isDrag, clicked
     cow2wld = np.copy(startPoint)
     curvePoint.clear()
     isRunning = False
+    isDrag = False
+    clicked = False
 
 def main():
     if not glfw.init():
